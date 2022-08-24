@@ -33,57 +33,67 @@ def simple_check(target_course, courses_list):
 
     return prereq
 
+# This function finds the remaining "English" expressions (e.g. "102 units of credit" or "12 units of credit in level 3 COMP courses" etc)
+#   that need to be converted into boolean expressions.
+#   These expressions are always sandwiched between and/ or statements as a sentence. (i.e. can be identified as consecutive non-bool words)
 def find_unevaluated_conditions(string_condition):
-    known_words = ["True", "False", "and", "or"]
+    bool_words = ["True", "False", "and", "or"]
     unevaluated_conditions = []
     condition = []
     for word in string_condition.split(" "):
-        if word not in known_words:
+        # Find consecutive non-bool words. This will form 1 "English" expression that is stored in the condition variable
+        if word not in bool_words:
             condition.append(word)
+
+        # Consecutive run broken, therefore we have successfully found 1 "English" expression
         else:
             if len(condition) != 0:
                 unevaluated_conditions.append(condition)
             condition = []
+        
+        #Loop continues to look for another "English" expression
 
     if len(condition) != 0:
         unevaluated_conditions.append(condition)
 
-    return unevaluated_conditions
+    return unevaluated_conditions 
 
-# Cleans data and finds other conditions that need to be evaluated
+# Cleans data and converts any remaining "English" expressions into boolean expressions
 def complex_check(prereq, courses_list):
     string_condition = prereq
-    unevaluated_conditions = find_unevaluated_conditions(string_condition)
+    unevaluated_conditions = find_unevaluated_conditions(string_condition) #List of all "English" expressions that need to be converted
 
-    for command in unevaluated_conditions:
-        if len(command) == 1:
-            string_condition.replace(command, '')
+    for condition in unevaluated_conditions:
+        # One word conditions don't exist, they must be unecessary words e.g. "prerequisite, pre-req, prequisite: "
+        if len(condition) == 1:
+            string_condition.replace(condition, '')
         else:
-            uoc = int(command[command.index("units") - 1])
+            uoc = int(condition[condition.index("units") - 1])
             uoc_completed = 0
 
             # x units of credit in ...
-            if("courses" in command):
-                # x units of credit in level ...
-                if("level" in command):
-                    course_pattern = command[command.index("courses") - 1] + command[command.index("courses") - 2] + "\d\d\d"
-                # x units of credit in ...
+            if("courses" in condition):
+                # x units of credit in level ...... courses
+                if("level" in condition):
+                    course_pattern = condition[condition.index("courses") - 1] + condition[condition.index("courses") - 2] + "\d\d\d"
+
+                # x units of credit in ... courses
                 else:
-                    course_pattern = command[command.index("courses") - 1] + "\d\d\d\d"
+                    course_pattern = condition[condition.index("courses") - 1] + "\d\d\d\d"
 
                 course_pattern_matching = re.findall(course_pattern, ' '.join(courses_list))
-                uoc_completed = len(course_pattern_matching) * 6 #Assuming every course is 6uoc
+                uoc_completed = len(course_pattern_matching) * 6
+
+            # x units of credit in (...., ...., ...., ....)
+            elif("in" in condition):
+                uoc_completed = ''.join(condition[condition.index("in") + 1:]).count("True") * 6
 
             # x units of credit
-            elif ("in" not in command):
+            elif ("in" not in condition):
                 uoc_completed = len(courses_list) * 6
+            
+            string_condition = string_condition.replace(' '.join(condition), "True" if uoc_completed >= uoc else "False")
 
-            ##Checking if uoc requirements are met
-            #if uoc_completed >= uoc:
-            #    string_condition = string_condition.replace(' '.join(command), "True")
-            #else:
-            #    string_condition = string_condition.replace(' '.join(command), "False")
-            string_condition = string_condition.replace(' '.join(command), "True" if uoc_completed >= uoc else "False")
     return string_condition
             
 # This code works by grabbing the condition from conditions.json and cleans the data so that it can be evaluated
