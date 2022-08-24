@@ -24,7 +24,7 @@ with open("./conditions.json") as f:
 def simple_check(target_course, courses_list):
     #Cleaning data
     prereq = CONDITIONS.get(target_course)
-    prereq = prereq.replace("AND", 'and').replace("OR", 'or')
+    prereq = prereq.replace("AND", 'and').replace("OR", 'or').replace(".", '')
     #Replace all courses completed by the student with True
     for course in courses_list:
         prereq = prereq.replace(course, "True")
@@ -42,7 +42,7 @@ def find_unevaluated_conditions(string_condition):
     condition = []
     for word in string_condition.split(" "):
         # Find consecutive non-bool words. This will form 1 "English" expression that is stored in the condition variable
-        if word not in bool_words:
+        if not (re.search(".*True.*", word) or re.search(".*False.*", word) or re.search(".*and.*", word) or re.search(".*or.*", word)):#word not in bool_words:
             condition.append(word)
 
         # Consecutive run broken, therefore we have successfully found 1 "English" expression
@@ -62,11 +62,11 @@ def find_unevaluated_conditions(string_condition):
 def complex_check(prereq, courses_list):
     string_condition = prereq
     unevaluated_conditions = find_unevaluated_conditions(string_condition) #List of all "English" expressions that need to be converted
-
     for condition in unevaluated_conditions:
         # One word conditions don't exist, they must be unecessary words e.g. "prerequisite, pre-req, prequisite: "
         if len(condition) == 1:
-            string_condition.replace(condition, '')
+            string_condition = string_condition.replace(condition[0], '')
+            
         else:
             uoc = int(condition[condition.index("units") - 1])
             uoc_completed = 0
@@ -86,7 +86,11 @@ def complex_check(prereq, courses_list):
 
             # x units of credit in (...., ...., ...., ....)
             elif("in" in condition):
-                uoc_completed = ''.join(condition[condition.index("in") + 1:]).count("True") * 6
+                #Isolating (...., ...., ...., ....)
+                list_course =  string_condition[(string_condition.index("in") + 3):]
+                uoc_completed = ''.join(list_course).count("True")*6
+                #Getting rid of (...., ...., ...., ....)
+                string_condition = string_condition.replace(list_course, '')
 
             # x units of credit
             elif ("in" not in condition):
@@ -113,10 +117,14 @@ def is_unlocked(courses_list, target_course):
     string_condition = ''
     try:
         string_condition = simple_check(target_course, courses_list)
+        if (string_condition == ''):
+            return True
         return eval(string_condition)
     except:
         string_condition = complex_check(string_condition, courses_list)
+        string_condition = complex_check(string_condition, courses_list)
         try: 
+            #print(string_condition)
             return eval(string_condition)
         except:
             print("something went wrong")
@@ -124,6 +132,11 @@ def is_unlocked(courses_list, target_course):
     return None
 
 if __name__ == '__main__':
+    print(is_unlocked(["COMP6441"], "COMP9302") == False)
+    print(is_unlocked(["COMP3901"], "COMP3902") == False)
+    print(is_unlocked(["COMP3331"], "COMP4336") == True)
+    print(is_unlocked([], "COMP1511") == True)
+
     print(is_unlocked(["MATH1081", "COMP1511", ], "COMP4161") == False)
     print(is_unlocked(["MATH1081", "COMP1511","COMP1521", ], "COMP4161") == True)
 
